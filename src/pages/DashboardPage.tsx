@@ -8,6 +8,7 @@ import {
 } from '@/services/api';
 import type { FinancialSummary, CategorySummary, Expense } from '@/types/types';
 import { formatCurrency, formatCurrencyShort, formatDate, getBudgetStatus } from '@/lib/utils';
+import { canAddData } from '@/types/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +36,7 @@ type GroupBy = 'daily' | 'weekly' | 'monthly';
 
 export default function DashboardPage() {
   const { project } = useProject();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
 
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
@@ -102,14 +103,18 @@ export default function DashboardPage() {
           <p className="text-muted-foreground text-sm mt-0.5">Financial Overview</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <Button onClick={() => setAddExpenseOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Expense
-          </Button>
-          <Button variant="secondary" onClick={() => setAddInvestmentOpen(true)} className="gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Add Investment
-          </Button>
+          {canAddData(profile?.role) && (
+            <>
+              <Button onClick={() => setAddExpenseOpen(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Expense
+              </Button>
+              <Button variant="secondary" onClick={() => setAddInvestmentOpen(true)} className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Add Investment
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
