@@ -31,7 +31,12 @@ async function createUser(email: string, password: string, username: string, rol
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: { action: 'create_user', email, password, username: username || null, role },
   });
-  if (error) throw error;
+  // supabase.functions.invoke sets error.message to a generic string on non-2xx;
+  // the real message is in data.error or error.context?.responseBody
+  if (error) {
+    const msg = data?.error ?? error.message ?? 'Edge Function error';
+    throw new Error(msg);
+  }
   if (data?.error) throw new Error(data.error);
 }
 
@@ -44,7 +49,10 @@ async function deleteUser(userId: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: { action: 'delete_user', userId },
   });
-  if (error) throw error;
+  if (error) {
+    const msg = data?.error ?? error.message ?? 'Edge Function error';
+    throw new Error(msg);
+  }
   if (data?.error) throw new Error(data.error);
 }
 
