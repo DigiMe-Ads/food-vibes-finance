@@ -1,0 +1,120 @@
+/* stylelint-disable */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+
+    /* Core palette — light mode (professional fintech dark-navy theme) */
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: deep navy blue */
+    --primary: 222 65% 28%;
+    --primary-foreground: 210 40% 98%;
+
+    /* Secondary: light neutral */
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 18% 93%;
+    --muted-foreground: 220 15% 46%;
+
+    /* Accent: teal/cyan — distinct from primary */
+    --accent: 185 60% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 222 65% 28%;
+
+    /* Semantic status colors */
+    --success: 142 69% 36%;
+    --warning: 38 92% 50%;
+    --info: 210 79% 46%;
+
+    /* Charts */
+    --chart-1: 222 65% 38%;
+    --chart-2: 185 60% 42%;
+    --chart-3: 142 60% 40%;
+    --chart-4: 38 90% 50%;
+    --chart-5: 0 70% 55%;
+
+    /* Sidebar — dark navy charcoal */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 213 25% 82%;
+    --sidebar-primary: 185 60% 55%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 222 40% 18%;
+    --sidebar-accent-foreground: 213 25% 95%;
+    --sidebar-border: 222 35% 18%;
+    --sidebar-ring: 185 60% 55%;
+
+    /* Shadows */
+    --shadow-card: 0 1px 3px 0 rgba(0,0,0,.08), 0 1px 2px -1px rgba(0,0,0,.06);
+    --shadow-hover: 0 4px 12px 0 rgba(0,0,0,.10);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(222, 65%, 28%), hsl(222, 55%, 38%));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+}
+
+/* Utility: currency amount emphasis */
+.amount-text {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+/* Status badge colors */
+.status-normal { @apply text-success; }
+.status-attention { @apply text-warning; }
+.status-warning { @apply text-destructive; }
+
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+  .print-full { width: 100% !important; }
+}
+
+/* Sidebar nav active state */
+.nav-active {
+  background-color: hsl(var(--sidebar-accent));
+  color: hsl(var(--sidebar-accent-foreground));
+}
