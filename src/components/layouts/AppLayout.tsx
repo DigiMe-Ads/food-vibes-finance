@@ -89,29 +89,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <TrendingDown className="w-4 h-4 text-sidebar-primary-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="text-white font-semibold text-sm leading-tight truncate">RestaurantFinance</p>
-            <p className="text-sidebar-foreground text-xs truncate">
-              {project?.name ?? 'Loading…'}
-            </p>
+            <p className="text-white font-semibold text-sm leading-tight truncate">{"Food Vibes Finance"}</p>
+
           </div>
         </div>
       </div>
-
       {/* Nav */}
       <NavItems onNavigate={onNavigate} role={profile?.role} />
-
       {/* Project status badge */}
       {project && (
         <div className="px-4 pb-3">
-          <div className="bg-sidebar-accent rounded-lg px-3 py-2">
-            <p className="text-sidebar-foreground text-xs mb-1">Project Status</p>
-            <Badge variant="outline" className="text-sidebar-primary border-sidebar-primary text-xs font-medium">
-              {project.status}
-            </Badge>
-          </div>
+
         </div>
       )}
-
       {/* User + Logout */}
       <div className="px-3 py-3 border-t border-sidebar-border">
         {profile && (
