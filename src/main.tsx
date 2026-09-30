@@ -6,7 +6,7 @@ import { CrashScreen } from "./components/common/CrashScreen.tsx";
 import "./index.css";
 
 Sentry.init({
-  dsn: import.meta.env['VITE_SENTRY_DSN'] as string | undefined,
+  dsn: import.meta.env.VITE_SENTRY_DSN as string | undefined,
   environment: import.meta.env.MODE,
 });
 
