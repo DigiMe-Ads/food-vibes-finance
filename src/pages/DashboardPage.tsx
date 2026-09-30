@@ -244,7 +244,7 @@ export default function DashboardPage() {
                       itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
                       contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12, boxShadow: 'var(--shadow-hover)' }}
                     />
-                    <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                    <Bar dataKey="amount" fill="hsl(var(--brand))" radius={[4, 4, 0, 0]} maxBarSize={36} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -279,7 +279,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(cat.total / maxCat) * 100}%` }} />
+                        <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${(cat.total / maxCat) * 100}%` }} />
                       </div>
                     </button>
                   </li>

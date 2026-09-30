@@ -1,18 +1,26 @@
-import { TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/** Food Vibes Finance logo lockup (original teal badge). `inverted` is for the dark sidebar. */
-export function BrandMark({ inverted, compact, className }: { inverted?: boolean; compact?: boolean; className?: string }) {
+type Size = 'sm' | 'md' | 'lg';
+
+const SIZES: Record<Size, { logo: string; tagline: string; gap: string }> = {
+  sm: { logo: 'h-7', tagline: 'text-[8px]', gap: 'mt-1' },
+  md: { logo: 'h-9', tagline: 'text-[9.5px]', gap: 'mt-1.5' },
+  lg: { logo: 'h-16', tagline: 'text-[13px]', gap: 'mt-3' },
+};
+
+/**
+ * Food Vibes wordmark (from the official logo) with "Finance" set underneath in the
+ * same spaced style as the logo's "Restaurant & Bar" line. The gold artwork reads on
+ * both the ivory pages and the espresso sidebar.
+ */
+export function BrandMark({ size = 'md', compact, className }: { size?: Size; compact?: boolean; className?: string }) {
+  const s = SIZES[size];
   return (
-    <div className={cn('flex items-center gap-2.5', className)}>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
-        <TrendingDown className="h-[18px] w-[18px]" />
-      </span>
+    <div className={cn('inline-flex flex-col items-center', className)}>
+      <img src="/brand/wordmark.png" alt="Food Vibes" className={cn('w-auto select-none', s.logo)} draggable={false} />
       {!compact && (
-        <div className="min-w-0 leading-tight">
-          <p className={cn('truncate text-[15px] font-bold tracking-tight', inverted ? 'text-white' : 'text-foreground')}>Food Vibes</p>
-          <p className={cn('truncate text-[11px] font-semibold uppercase tracking-wider', inverted ? 'text-sidebar-primary' : 'text-accent')}>Finance</p>
-        </div>
+        // Negative right margin cancels the trailing letter-space so the word stays centred
+        <span className={cn('brand-tagline -mr-[0.42em] leading-none text-brand', s.tagline, s.gap)}>Finance</span>
       )}
     </div>
   );

@@ -121,8 +121,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
-      <div className="px-5 pt-6 pb-5">
-        <BrandMark inverted />
+      <div className="flex justify-center px-5 pt-7 pb-6">
+        <BrandMark />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
@@ -211,7 +211,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <div className="md:hidden"><BrandMark compact /></div>
+          <div className="md:hidden"><BrandMark size="sm" compact /></div>
 
           {project && (
             <div className="hidden min-w-0 items-center gap-2.5 md:flex">

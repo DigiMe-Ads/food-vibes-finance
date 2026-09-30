@@ -55,14 +55,14 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-sidebar-primary/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-sidebar-primary/10 blur-3xl" />
 
-        <BrandMark inverted className="relative" />
+        <BrandMark size="lg" className="relative self-start" />
 
         <div className="relative max-w-md space-y-10">
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-sidebar-primary">
               <UtensilsCrossed className="h-3.5 w-3.5" /> Construction project finance
             </p>
-            <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight">
+            <h1 className="font-display text-5xl font-semibold leading-[1.05]">
               Every rupee of the <span className="text-sidebar-primary">Food Vibes</span> build, accounted for.
             </h1>
           </div>
@@ -91,7 +91,7 @@ export default function LoginPage() {
           <BrandMark className="lg:hidden" />
 
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h2>
+            <h2 className="font-display text-4xl font-semibold text-foreground">Welcome back</h2>
             <p className="mt-2 text-sm text-muted-foreground">Sign in to the Food Vibes finance dashboard.</p>
           </div>
 

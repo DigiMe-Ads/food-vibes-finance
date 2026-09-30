@@ -1,121 +1,125 @@
 /* stylelint-disable */
 /* @import must precede all other statements */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* Original site palette: deep navy primary, teal accent, dark navy sidebar */
+  /* Food Vibes palette, taken from the logo: gold on warm ivory, espresso sidebar, sage accent */
   :root {
     --radius: 0.75rem;
 
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+    --background: 40 30% 97%;
+    --foreground: 28 18% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 28 18% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 28 18% 12%;
 
-    /* Primary: deep navy blue */
-    --primary: 222 65% 28%;
-    --primary-foreground: 210 40% 98%;
+    /* Logo gold (#a3824e) — logo, chart bars, highlights */
+    --brand: 37 35% 47%;
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 222 47% 11%;
+    /* Primary: deeper gold so white button text stays readable (≈ 5:1) */
+    --primary: 36 40% 36%;
+    --primary-foreground: 40 40% 98%;
 
-    --muted: 220 18% 94%;
-    --muted-foreground: 220 15% 46%;
+    --secondary: 38 25% 93%;
+    --secondary-foreground: 28 18% 14%;
 
-    /* Accent: teal/cyan — distinct from primary */
-    --accent: 185 60% 38%;
+    --muted: 38 22% 94.5%;
+    --muted-foreground: 28 10% 41%;
+
+    /* Accent: muted sage — pairs with gold (further investments, secondary data) */
+    --accent: 160 24% 31%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 89%;
-    --input: 220 20% 86%;
-    --ring: 222 65% 40%;
+    --border: 36 20% 88%;
+    --input: 36 18% 84%;
+    --ring: 37 40% 45%;
 
-    --success: 142 69% 36%;
-    --warning: 38 92% 45%;
-    --info: 210 79% 46%;
+    --success: 150 50% 31%;
+    --warning: 32 85% 40%;
+    --info: 210 60% 45%;
 
-    --chart-1: 222 65% 38%;
-    --chart-2: 185 60% 42%;
-    --chart-3: 142 60% 40%;
-    --chart-4: 38 90% 50%;
-    --chart-5: 0 70% 55%;
+    --chart-1: 37 35% 47%;
+    --chart-2: 160 24% 36%;
+    --chart-3: 150 45% 38%;
+    --chart-4: 32 85% 48%;
+    --chart-5: 0 60% 55%;
 
-    /* Sidebar — dark navy */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 213 25% 78%;
-    --sidebar-primary: 185 60% 55%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 40% 18%;
-    --sidebar-accent-foreground: 213 25% 97%;
-    --sidebar-border: 222 35% 18%;
-    --sidebar-ring: 185 60% 55%;
+    /* Sidebar — espresso with gold highlights */
+    --sidebar-background: 28 16% 9%;
+    --sidebar-foreground: 36 12% 72%;
+    --sidebar-primary: 38 45% 62%;
+    --sidebar-primary-foreground: 28 20% 8%;
+    --sidebar-accent: 28 12% 15%;
+    --sidebar-accent-foreground: 40 30% 96%;
+    --sidebar-border: 28 12% 15%;
+    --sidebar-ring: 38 45% 62%;
 
-    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-    --shadow-hover: 0 8px 24px -6px rgb(15 23 42 / 0.14);
+    --shadow-card: 0 1px 2px 0 rgb(60 44 20 / 0.04), 0 1px 3px 0 rgb(60 44 20 / 0.06);
+    --shadow-hover: 0 10px 28px -8px rgb(60 44 20 / 0.16);
 
-    --gradient-primary: linear-gradient(135deg, hsl(222 65% 28%), hsl(222 55% 40%));
+    --gradient-primary: linear-gradient(135deg, hsl(38 45% 55%), hsl(34 40% 36%));
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 213 25% 94%;
+    --background: 28 14% 6.5%;
+    --foreground: 38 25% 92%;
 
-    --card: 222 40% 10%;
-    --card-foreground: 213 25% 94%;
+    --card: 28 12% 9.5%;
+    --card-foreground: 38 25% 92%;
 
-    --popover: 222 40% 11%;
-    --popover-foreground: 213 25% 94%;
+    --popover: 28 12% 10.5%;
+    --popover-foreground: 38 25% 92%;
 
-    /* Lighter blue so buttons and bars stay visible on the dark surface */
-    --primary: 217 80% 62%;
-    --primary-foreground: 222 47% 8%;
+    --brand: 38 45% 60%;
 
-    --secondary: 222 30% 16%;
-    --secondary-foreground: 213 25% 94%;
+    --primary: 38 48% 60%;
+    --primary-foreground: 28 25% 8%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 16% 64%;
+    --secondary: 28 10% 15%;
+    --secondary-foreground: 38 25% 92%;
 
-    --accent: 185 60% 50%;
-    --accent-foreground: 222 47% 8%;
+    --muted: 28 10% 13%;
+    --muted-foreground: 36 10% 62%;
 
-    --destructive: 0 75% 62%;
+    --accent: 160 26% 52%;
+    --accent-foreground: 28 25% 8%;
+
+    --destructive: 0 68% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 28% 18%;
-    --input: 222 28% 22%;
-    --ring: 217 80% 62%;
+    --border: 28 10% 17%;
+    --input: 28 10% 21%;
+    --ring: 38 48% 60%;
 
-    --success: 142 55% 48%;
-    --warning: 38 90% 56%;
-    --info: 210 79% 60%;
+    --success: 150 45% 48%;
+    --warning: 38 85% 56%;
+    --info: 210 70% 62%;
 
-    --chart-1: 217 80% 62%;
-    --chart-2: 185 60% 50%;
-    --chart-3: 142 55% 48%;
-    --chart-4: 38 90% 56%;
-    --chart-5: 0 70% 62%;
+    --chart-1: 38 48% 60%;
+    --chart-2: 160 26% 52%;
+    --chart-3: 150 45% 48%;
+    --chart-4: 38 85% 56%;
+    --chart-5: 0 68% 62%;
 
-    --sidebar-background: 222 47% 5%;
-    --sidebar-foreground: 213 20% 72%;
-    --sidebar-accent: 222 35% 13%;
-    --sidebar-border: 222 30% 12%;
+    --sidebar-background: 28 14% 4.5%;
+    --sidebar-foreground: 36 10% 68%;
+    --sidebar-accent: 28 10% 12%;
+    --sidebar-border: 28 10% 11%;
 
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-hover: 0 8px 24px -6px rgb(0 0 0 / 0.5);
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+    --shadow-hover: 0 10px 28px -8px rgb(0 0 0 / 0.55);
 
-    --gradient-primary: linear-gradient(135deg, hsl(217 70% 50%), hsl(222 60% 38%));
+    --gradient-primary: linear-gradient(135deg, hsl(38 50% 62%), hsl(34 42% 44%));
   }
 }
 
@@ -146,6 +150,21 @@
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: -0.015em;
+  }
+}
+
+@layer utilities {
+  /* Elegant serif echoing the script logo — page titles only (numbers stay in the sans) */
+  .font-display {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: -0.005em;
+  }
+  /* Matches the logo's spaced "Restaurant & Bar" line */
+  .brand-tagline {
+    font-family: 'Jost', 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.42em;
   }
 }
 
