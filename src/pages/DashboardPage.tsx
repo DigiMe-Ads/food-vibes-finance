@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,32 +7,33 @@ import {
   getInvestmentTimeline, getRecentExpenses
 } from '@/services/api';
 import type { FinancialSummary, CategorySummary, Expense } from '@/types/types';
-import { formatCurrency, formatCurrencyShort, formatDate, getBudgetStatus } from '@/lib/utils';
+import { formatCurrency, formatCurrencyShort, formatDate, getBudgetStatus, cn, displayName } from '@/lib/utils';
 import { canAddData } from '@/types/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from 'recharts';
-import {
-  TrendingUp, TrendingDown, Wallet, PieChart as PieIcon,
-  Plus, ArrowRight, Calendar, AlertTriangle, CheckCircle2
+  TrendingUp, TrendingDown, Wallet, Gauge, Plus, ArrowRight, AlertTriangle, CheckCircle2,
+  Receipt, PiggyBank, BarChart3,
 } from 'lucide-react';
 import AddExpenseModal from '@/components/modals/AddExpenseModal';
 import AddInvestmentModal from '@/components/modals/AddInvestmentModal';
-
-const CHART_COLORS = [
-  '#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626',
-  '#7c3aed', '#0d9488', '#d97706', '#9333ea', '#be123c', '#1d4ed8', '#065f46'
-];
+import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/common/StatCard';
+import { EmptyState } from '@/components/common/EmptyState';
 
 type TimeRange = '7d' | '30d' | 'month' | 'custom';
 type GroupBy = 'daily' | 'weekly' | 'monthly';
+
+const TOP_CATEGORIES = 6;
+
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
 
 export default function DashboardPage() {
   const { project } = useProject();
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   const [investmentTimeline, setInvestmentTimeline] = useState<{ date: string; amount: number; type: string }[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('daily');
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
@@ -70,231 +72,179 @@ export default function DashboardPage() {
   const loadData = useCallback(async () => {
     if (!project) return;
     setLoading(true);
-    const { from, to } = getDateRange();
-    const [s, cats, spend, inv, recent] = await Promise.all([
+    const [s, cats, inv, recent] = await Promise.all([
       getFinancialSummary(project.id),
       getExpensesByCategory(project.id),
-      getSpendingOverTime(project.id, groupBy, from, to),
       getInvestmentTimeline(project.id),
-      getRecentExpenses(project.id, 10),
+      getRecentExpenses(project.id, 8),
     ]);
     setSummary(s);
     setCategories(cats);
-    setSpendingData(spend);
     setInvestmentTimeline(inv);
     setRecentExpenses(recent);
     setLoading(false);
+  }, [project]);
+
+  // The spending chart reloads on its own so changing its filters doesn't blank the whole page
+  const loadChart = useCallback(async () => {
+    if (!project) return;
+    setChartLoading(true);
+    const { from, to } = getDateRange();
+    setSpendingData(await getSpendingOverTime(project.id, groupBy, from, to));
+    setChartLoading(false);
   }, [project, groupBy, getDateRange]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadChart(); }, [loadChart]);
 
-  const handleAdded = () => { loadData(); };
+  const handleAdded = () => { loadData(); loadChart(); };
 
   if (!project || loading) return <DashboardSkeleton />;
 
-  const budgetStatus = getBudgetStatus(summary?.budgetUtilisedPct ?? 0);
+  const pct = summary?.budgetUtilisedPct ?? 0;
+  const budgetStatus = getBudgetStatus(pct);
+  const balance = summary?.availableBalance ?? 0;
+  const overBudget = balance < 0;
+  const topCats = categories.slice(0, TOP_CATEGORIES);
+  const maxCat = Math.max(...topCats.map(c => c.total), 1);
+  const periodTotal = spendingData.reduce((s, d) => s + d.amount, 0);
+  const name = displayName(profile?.email ?? user?.email, profile?.username);
 
   return (
     <div className="space-y-6">
-      {/* Page header + quick actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Financial Overview</p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {canAddData(profile?.role) && (
-            <>
-              <Button onClick={() => setAddExpenseOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add Expense
-              </Button>
-              <Button variant="secondary" onClick={() => setAddInvestmentOpen(true)} className="gap-2">
-                <TrendingUp className="w-4 h-4" />
-                Add Investment
-              </Button>
-            </>
-          )}
-        </div>
+      <PageHeader
+        title={`${greeting()}, ${name}`}
+        description={<>Here's where <span className="font-medium text-foreground">{project.name}</span> stands today.</>}
+        actions={canAddData(profile?.role) && (
+          <>
+            <Button variant="outline" onClick={() => setAddInvestmentOpen(true)} className="gap-2">
+              <TrendingUp className="h-4 w-4" /> Add investment
+            </Button>
+            <Button onClick={() => setAddExpenseOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Add expense
+            </Button>
+          </>
+        )}
+      />
+
+      {/* KPI tiles */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total investment"
+          icon={PiggyBank}
+          tone="primary"
+          value={formatCurrency(summary?.totalInvestment ?? 0, project.currency)}
+          footer={
+            <div className="space-y-1">
+              <div className="flex justify-between gap-2"><span>Initial</span><span className="amount-text font-medium text-foreground">{formatCurrency(summary?.initialInvestment ?? 0, project.currency)}</span></div>
+              <div className="flex justify-between gap-2"><span>Further</span><span className="amount-text font-medium text-foreground">{formatCurrency(summary?.furtherInvestments ?? 0, project.currency)}</span></div>
+            </div>
+          }
+        />
+        <StatCard
+          label="Total spent"
+          icon={TrendingDown}
+          tone="destructive"
+          value={formatCurrency(summary?.totalExpenses ?? 0, project.currency)}
+          footer={<div className="flex justify-between gap-2"><span>Spent today</span><span className="amount-text font-medium text-foreground">{formatCurrency(summary?.todayExpenses ?? 0, project.currency)}</span></div>}
+        />
+        <StatCard
+          label="Available balance"
+          icon={Wallet}
+          tone={overBudget ? 'destructive' : 'success'}
+          valueClassName={overBudget ? 'text-destructive' : 'text-success'}
+          value={formatCurrency(balance, project.currency)}
+          footer={overBudget
+            ? <span className="flex items-center gap-1.5 font-semibold text-destructive"><AlertTriangle className="h-3.5 w-3.5" /> Over budget</span>
+            : <span className="flex items-center gap-1.5 text-success"><CheckCircle2 className="h-3.5 w-3.5" /> Within budget</span>}
+        />
+        <StatCard
+          label="Budget utilised"
+          icon={Gauge}
+          tone="accent"
+          valueClassName={budgetStatus.color}
+          value={pct >= 100 ? 'Over budget' : `${pct.toFixed(1)}%`}
+          footer={
+            <div className="space-y-2">
+              <Progress value={Math.min(pct, 100)} className="h-2" indicatorClassName={budgetStatus.barColor} />
+              <p className={cn('font-medium', budgetStatus.color)}>{budgetStatus.label}</p>
+            </div>
+          }
+        />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Total Investment */}
-        <Card className="shadow-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-sm font-medium text-muted-foreground">Total Investment</p>
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-4 h-4 text-primary" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-foreground amount-text">
-              {formatCurrency(summary?.totalInvestment ?? 0, project.currency)}
-            </p>
-            <div className="mt-2 space-y-0.5">
-              <p className="text-xs text-muted-foreground">Initial: {formatCurrency(summary?.initialInvestment ?? 0, project.currency)}</p>
-              <p className="text-xs text-muted-foreground">Further: {formatCurrency(summary?.furtherInvestments ?? 0, project.currency)}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Spent */}
-        <Card className="shadow-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-              <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                <TrendingDown className="w-4 h-4 text-destructive" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-foreground amount-text">
-              {formatCurrency(summary?.totalExpenses ?? 0, project.currency)}
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Today: {formatCurrency(summary?.todayExpenses ?? 0, project.currency)}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Available Balance */}
-        <Card className="shadow-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-sm font-medium text-muted-foreground">Available Balance</p>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${(summary?.availableBalance ?? 0) < 0 ? 'bg-destructive/10' : 'bg-success/10'}`}>
-                <Wallet className={`w-4 h-4 ${(summary?.availableBalance ?? 0) < 0 ? 'text-destructive' : 'text-success'}`} />
-              </div>
-            </div>
-            <p className={`text-2xl font-bold amount-text ${(summary?.availableBalance ?? 0) < 0 ? 'text-destructive' : 'text-success'}`}>
-              {formatCurrency(summary?.availableBalance ?? 0, project.currency)}
-            </p>
-            {(summary?.availableBalance ?? 0) < 0 && (
-              <div className="mt-2 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3 text-destructive" />
-                <p className="text-xs text-destructive font-medium">OVER BUDGET</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Budget Utilised */}
-        <Card className="shadow-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-sm font-medium text-muted-foreground">Budget Utilised</p>
-              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                <PieIcon className="w-4 h-4 text-accent" />
-              </div>
-            </div>
-            <p className={`text-2xl font-bold amount-text ${budgetStatus.color}`}>
-              {(summary?.budgetUtilisedPct ?? 0) >= 100
-                ? 'OVER BUDGET'
-                : `${(summary?.budgetUtilisedPct ?? 0).toFixed(1)}%`}
-            </p>
-            <div className="mt-3 space-y-1.5">
-              <Progress
-                value={Math.min(summary?.budgetUtilisedPct ?? 0, 100)}
-                className="h-2"
-                indicatorClassName={budgetStatus.barColor}
-              />
-              <p className={`text-xs font-medium ${budgetStatus.color}`}>{budgetStatus.label}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Financial Summary */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Financial Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {[
-              { label: 'Initial Investment', value: summary?.initialInvestment ?? 0, color: 'text-primary' },
-              { label: 'Further Investments', value: summary?.furtherInvestments ?? 0, color: 'text-accent' },
-              { label: 'Total Investment', value: summary?.totalInvestment ?? 0, color: 'text-foreground', bold: true },
-              { label: 'Total Expenses', value: summary?.totalExpenses ?? 0, color: 'text-destructive' },
-              {
-                label: 'Available Balance',
-                value: summary?.availableBalance ?? 0,
-                color: (summary?.availableBalance ?? 0) < 0 ? 'text-destructive' : 'text-success',
-                bold: true
-              },
-            ].map(item => (
-              <div key={item.label} className="flex flex-col gap-1 p-3 rounded-lg bg-muted/50">
-                <p className="text-xs text-muted-foreground">{item.label}</p>
-                <p className={`text-sm font-semibold amount-text ${item.color} ${item.bold ? 'text-base' : ''}`}>
-                  {formatCurrency(item.value, project.currency)}
+      {/* Charts */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="min-w-0 lg:col-span-2">
+          <CardHeader className="pb-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-base">Spending over time</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <span className="amount-text font-semibold text-foreground">{formatCurrency(periodTotal, project.currency)}</span> in this period
                 </p>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Spending over time */}
-        <Card className="lg:col-span-2 shadow-card">
-          <CardHeader className="pb-2">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <CardTitle className="text-base font-semibold">Spending Over Time</CardTitle>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Select value={groupBy} onValueChange={v => setGroupBy(v as GroupBy)}>
-                  <SelectTrigger className="h-8 text-xs w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg bg-muted p-0.5" role="group" aria-label="Group by">
+                  {(['daily', 'weekly', 'monthly'] as GroupBy[]).map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setGroupBy(g)}
+                      aria-pressed={groupBy === g}
+                      className={cn(
+                        'rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors',
+                        groupBy === g ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
                 <Select value={timeRange} onValueChange={v => setTimeRange(v as TimeRange)}>
-                  <SelectTrigger className="h-8 text-xs w-32">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="7d">Last 7 Days</SelectItem>
-                    <SelectItem value="30d">Last 30 Days</SelectItem>
-                    <SelectItem value="month">This Month</SelectItem>
-                    <SelectItem value="custom">All Time</SelectItem>
+                    <SelectItem value="7d">Last 7 days</SelectItem>
+                    <SelectItem value="30d">Last 30 days</SelectItem>
+                    <SelectItem value="month">This month</SelectItem>
+                    <SelectItem value="custom">All time</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {spendingData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
-                No expense data for this period.
-              </div>
+            {chartLoading && spendingData.length === 0 ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : spendingData.length === 0 ? (
+              <EmptyState icon={BarChart3} title="No expenses in this period" description="Try a longer time range." className="h-[300px] py-0" />
             ) : (
-              <div className="w-full min-w-0 overflow-hidden">
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={spendingData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <div className={cn('w-full min-w-0 overflow-hidden transition-opacity', chartLoading && 'opacity-50')}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={spendingData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.7} vertical={false} />
                     <XAxis
                       dataKey="label"
                       tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={false}
                       axisLine={false}
                       interval="preserveStartEnd"
+                      minTickGap={16}
                     />
                     <YAxis
-                      tickFormatter={v => formatCurrencyShort(v, '')}
+                      tickFormatter={v => formatCurrencyShort(v, '').trim()}
                       tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={false}
                       axisLine={false}
-                      width={60}
+                      width={52}
                     />
                     <Tooltip
-                      formatter={(v: number) => [formatCurrency(v, project.currency), 'Expenses']}
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.6 }}
+                      formatter={(v: number) => [formatCurrency(v, project.currency), 'Spent']}
+                      labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: 2 }}
+                      itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
+                      contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12, boxShadow: 'var(--shadow-hover)' }}
                     />
-                    <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={36} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -302,133 +252,112 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Expenses by category */}
-        <Card className="shadow-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">By Category</CardTitle>
+        {/* Top categories — ranked bars read more precisely than a many-slice donut */}
+        <Card className="min-w-0">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Top categories</CardTitle>
+              <span className="text-xs text-muted-foreground">of total spend</span>
+            </div>
           </CardHeader>
           <CardContent>
-            {categories.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No expenses yet.</div>
+            {topCats.length === 0 ? (
+              <EmptyState icon={Receipt} title="No expenses yet" className="py-8" />
             ) : (
-              <div className="w-full min-w-0 overflow-hidden">
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={categories.slice(0, 8)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={70}
-                      dataKey="total"
-                      nameKey="categoryName"
-                    >
-                      {categories.slice(0, 8).map((_, idx) => (
-                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v: number, _n, p) => [
-                        `${formatCurrency(v, project.currency)} (${p.payload.percentage.toFixed(1)}%)`,
-                        p.payload.categoryName
-                      ]}
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1.5 mt-2">
-                  {categories.slice(0, 5).map((cat, idx) => (
+              <ul className="space-y-1">
+                {topCats.map(cat => (
+                  <li key={cat.categoryId}>
                     <button
-                      key={cat.categoryId}
                       onClick={() => navigate(`/expenses?category=${cat.categoryId}`)}
-                      className="w-full flex items-center gap-2 text-left hover:bg-muted/50 rounded-md px-1.5 py-1 transition-colors"
+                      className="group w-full rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/60"
+                      title={`View ${cat.categoryName} expenses`}
                     >
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CHART_COLORS[idx % CHART_COLORS.length] }} />
-                      <span className="text-xs text-foreground flex-1 min-w-0 truncate">{cat.categoryName}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{cat.percentage.toFixed(1)}%</span>
+                      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                        <span className="truncate text-sm font-medium text-foreground">{cat.categoryName}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          <span className="amount-text font-semibold text-foreground">{formatCurrencyShort(cat.total, '').trim()}</span> · {cat.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(cat.total / maxCat) * 100}%` }} />
+                      </div>
                     </button>
-                  ))}
-                </div>
-              </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {categories.length > TOP_CATEGORIES && (
+              <p className="mt-3 px-2 text-xs text-muted-foreground">+ {categories.length - TOP_CATEGORIES} more categories in Reports</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Investment timeline */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Investment History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {investmentTimeline.length === 0 ? (
-            <div className="py-6 text-center text-muted-foreground text-sm">No investments recorded yet.</div>
-          ) : (
-            <div className="space-y-0">
-              {investmentTimeline.map((inv, idx) => (
-                <div key={idx} className="flex items-center gap-4 py-2.5 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground w-24">{formatDate(inv.date)}</span>
-                  </div>
-                  <Badge variant="outline" className="text-xs shrink-0">{inv.type}</Badge>
-                  <span className="text-sm font-semibold text-primary amount-text ml-auto shrink-0">
-                    {formatCurrency(inv.amount, project.currency)}
-                  </span>
-                </div>
-              ))}
+      {/* Recent expenses + investments */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="min-w-0 overflow-hidden xl:col-span-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Recent expenses</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/expenses')} className="gap-1 text-primary">
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent Expenses */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold">Recent Expenses</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/expenses')} className="gap-1 text-xs">
-              View All <ArrowRight className="w-3 h-3" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
+          </CardHeader>
           {recentExpenses.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">No expenses recorded yet.</div>
+            <EmptyState icon={Receipt} title="No expenses recorded yet" />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-max whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    {['Date', 'Description', 'Category', 'Supplier', 'Amount'].map(h => (
-                      <th key={h} className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentExpenses.map(exp => (
-                    <tr key={exp.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(exp.date)}</td>
-                      <td className="px-4 py-3 text-sm text-foreground max-w-xs">
-                        <span className="block truncate">{exp.description}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {exp.categories && (
-                          <Badge variant="secondary" className="text-xs">{exp.categories.name}</Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{exp.supplier ?? '—'}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-foreground amount-text whitespace-nowrap text-right">
-                        {formatCurrency(exp.amount, project.currency)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="divide-y divide-border border-t border-border">
+              {recentExpenses.map(exp => (
+                <li key={exp.id} className="flex items-center gap-3 px-6 py-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <Receipt className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{exp.description}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {formatDate(exp.date)}
+                      {exp.categories && <> · {exp.categories.name}</>}
+                      {exp.supplier && <> · {exp.supplier}</>}
+                    </p>
+                  </div>
+                  <span className="amount-text shrink-0 text-sm font-semibold text-foreground">
+                    {formatCurrency(exp.amount, project.currency)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Investment history</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/investments')} className="gap-1 text-primary">
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </CardHeader>
+          {investmentTimeline.length === 0 ? (
+            <EmptyState icon={PiggyBank} title="No investments recorded yet" />
+          ) : (
+            <ul className="max-h-[480px] divide-y divide-border overflow-y-auto border-t border-border">
+              {investmentTimeline.map((inv, idx) => (
+                <li key={idx} className="flex items-center gap-3 px-6 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{inv.type}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(inv.date)}</p>
+                  </div>
+                  <span className="amount-text shrink-0 text-sm font-semibold text-primary">
+                    +{formatCurrency(inv.amount, project.currency)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
 
       <AddExpenseModal
         open={addExpenseOpen}
@@ -451,17 +380,16 @@ export default function DashboardPage() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-32" /></div>
-        <div className="flex gap-3"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-36" /></div>
+      <div className="flex items-end justify-between">
+        <div className="space-y-2"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-48" /></div>
+        <div className="flex gap-2"><Skeleton className="h-10 w-36" /><Skeleton className="h-10 w-32" /></div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
       </div>
-      <Skeleton className="h-28 rounded-xl" />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Skeleton className="lg:col-span-2 h-72 rounded-xl" />
-        <Skeleton className="h-72 rounded-xl" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-2xl" />
       </div>
     </div>
   );

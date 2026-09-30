@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useProject } from '@/contexts/ProjectContext';
 import {
   getFinancialSummary, getAllExpensesForReport, getExpensesByCategory, getMonthlySummary
@@ -17,6 +17,7 @@ import { getCategories } from '@/services/api';
 import type { Category } from '@/types/types';
 import { getBudgetStatus } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { PageHeader } from '@/components/common/PageHeader';
 
 export default function ReportsPage() {
   const { project } = useProject();
@@ -107,19 +108,20 @@ export default function ReportsPage() {
   if (!project) return null;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Financial analysis and data export</p>
-        </div>
-        <Button variant="secondary" onClick={handlePrint} className="gap-2 shrink-0 no-print">
-          <Printer className="w-4 h-4" /> Print Page
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        className="no-print"
+        title="Reports"
+        description="Financial analysis and data export."
+        actions={
+          <Button variant="outline" onClick={handlePrint} className="gap-2">
+            <Printer className="h-4 w-4" /> Print page
+          </Button>
+        }
+      />
 
       {/* Global Filters */}
-      <Card className="shadow-card no-print">
+      <Card className="no-print">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1.5">
@@ -156,19 +158,21 @@ export default function ReportsPage() {
 
       {/* Report Tabs */}
       <Tabs defaultValue="summary">
-        <TabsList className="h-9 no-print">
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 no-print md:mx-0 md:px-0">
+        <TabsList className="h-10 w-max">
           <TabsTrigger value="summary" className="text-xs">Financial Summary</TabsTrigger>
           <TabsTrigger value="expenses" className="text-xs">Expense Report</TabsTrigger>
           <TabsTrigger value="category" className="text-xs">By Category</TabsTrigger>
           <TabsTrigger value="daily" className="text-xs">Daily</TabsTrigger>
           <TabsTrigger value="monthly" className="text-xs">Monthly</TabsTrigger>
         </TabsList>
+        </div>
 
         {/* ── Financial Summary ── */}
         <TabsContent value="summary" className="mt-4">
-          <Card className="shadow-card">
+          <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Financial Summary Report</CardTitle>
+              <CardTitle className="text-base">Financial Summary Report</CardTitle>
               <p className="text-xs text-muted-foreground">{project.name}</p>
             </CardHeader>
             <CardContent>
@@ -182,8 +186,8 @@ export default function ReportsPage() {
                       { icon: TrendingDown, label: 'Total Expenses', value: summary.totalExpenses, color: 'text-destructive', bg: 'bg-destructive/10' },
                       { icon: Wallet, label: 'Available Balance', value: summary.availableBalance, color: summary.availableBalance < 0 ? 'text-destructive' : 'text-success', bg: summary.availableBalance < 0 ? 'bg-destructive/10' : 'bg-success/10', bold: true },
                     ].map(item => (
-                      <div key={item.label} className="flex items-center gap-4 p-4 border border-border rounded-lg">
-                        <div className={`w-10 h-10 rounded-lg ${item.bg} flex items-center justify-center shrink-0`}>
+                      <div key={item.label} className="flex items-center gap-4 rounded-xl border border-border p-4">
+                        <div className={`w-10 h-10 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
                           <item.icon className={`w-5 h-5 ${item.color}`} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -192,8 +196,8 @@ export default function ReportsPage() {
                         </div>
                       </div>
                     ))}
-                    <div className="flex items-center gap-4 p-4 border border-border rounded-lg">
-                      <div className={`w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0`}>
+                    <div className="flex items-center gap-4 rounded-xl border border-border p-4">
+                      <div className={`w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0`}>
                         <BarChart3 className={`w-5 h-5 ${budgetStatus?.color}`} />
                       </div>
                       <div className="flex-1 min-w-0 space-y-1.5">
@@ -213,10 +217,10 @@ export default function ReportsPage() {
 
         {/* ── Expense Report ── */}
         <TabsContent value="expenses" className="mt-4">
-          <Card className="shadow-card min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Expense Report</CardTitle>
-              <Button variant="secondary" size="sm" onClick={handleExportExpenses} className="gap-2 no-print">
+              <CardTitle className="text-base">Expense Report</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleExportExpenses} className="gap-2 no-print">
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
             </CardHeader>
@@ -224,17 +228,17 @@ export default function ReportsPage() {
               {loading ? <div className="p-4"><Skeleton className="h-48" /></div> : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-max whitespace-nowrap">
+                    <table className="data-table w-full min-w-max whitespace-nowrap">
                       <thead>
-                        <tr className="border-b border-border bg-muted/30">
+                        <tr>
                           {['Date', 'Description', 'Category', 'Supplier', 'Payment', 'Reference', 'Amount'].map(h => (
-                            <th key={h} className={`text-left px-4 py-3 text-xs font-semibold text-muted-foreground ${h === 'Amount' ? 'text-right' : ''}`}>{h}</th>
+                            <th key={h} className={`text-left px-4 py-3  ${h === 'Amount' ? 'text-right' : ''}`}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {expenses.map(exp => (
-                          <tr key={exp.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                          <tr key={exp.id}>
                             <td className="px-4 py-2.5 text-xs text-muted-foreground">{formatDate(exp.date)}</td>
                             <td className="px-4 py-2.5 text-sm text-foreground max-w-[180px]"><span className="block truncate">{exp.description}</span></td>
                             <td className="px-4 py-2.5 text-xs text-muted-foreground">{exp.categories?.name ?? '—'}</td>
@@ -246,7 +250,7 @@ export default function ReportsPage() {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-muted/30 border-t-2 border-border">
+                        <tr className="border-t-2 border-border">
                           <td colSpan={6} className="px-4 py-3 text-sm font-semibold">Total ({expenses.length} expenses)</td>
                           <td className="px-4 py-3 text-sm font-bold text-right amount-text text-destructive">{formatCurrency(expenseTotal, currency)}</td>
                         </tr>
@@ -262,28 +266,28 @@ export default function ReportsPage() {
 
         {/* ── Category Report ── */}
         <TabsContent value="category" className="mt-4">
-          <Card className="shadow-card min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Category Report</CardTitle>
-              <Button variant="secondary" size="sm" onClick={handleExportCategory} className="gap-2 no-print">
+              <CardTitle className="text-base">Category Report</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleExportCategory} className="gap-2 no-print">
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? <div className="p-4"><Skeleton className="h-48" /></div> : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-max whitespace-nowrap">
+                  <table className="data-table w-full min-w-max whitespace-nowrap">
                     <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Category</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Transactions</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Total Spent</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">% of Total</th>
+                      <tr>
+                        <th className="text-left px-4 py-3 ">Category</th>
+                        <th className="text-right px-4 py-3 ">Transactions</th>
+                        <th className="text-right px-4 py-3 ">Total Spent</th>
+                        <th className="text-right px-4 py-3 ">% of Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {catSummaries.map(cat => (
-                        <tr key={cat.categoryId} className="border-b border-border last:border-0 hover:bg-muted/20">
+                        <tr key={cat.categoryId}>
                           <td className="px-4 py-2.5 text-sm font-medium text-foreground">{cat.categoryName}</td>
                           <td className="px-4 py-2.5 text-sm text-muted-foreground text-right">{cat.count}</td>
                           <td className="px-4 py-2.5 text-sm font-semibold text-right amount-text">{formatCurrency(cat.total, currency)}</td>
@@ -308,9 +312,9 @@ export default function ReportsPage() {
 
         {/* ── Daily Report ── */}
         <TabsContent value="daily" className="mt-4">
-          <Card className="shadow-card min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-3">
-              <CardTitle className="text-base font-semibold">Daily Expense Report</CardTitle>
+              <CardTitle className="text-base">Daily Expense Report</CardTitle>
               <div className="flex items-center gap-3">
                 <Input
                   type="date"
@@ -318,7 +322,7 @@ export default function ReportsPage() {
                   onChange={e => setFilters(f => ({ ...f, specificDate: e.target.value }))}
                   className="h-8 text-sm w-40"
                 />
-                <Button variant="secondary" size="sm" onClick={handleExportDaily} className="gap-2 no-print">
+                <Button variant="outline" size="sm" onClick={handleExportDaily} className="gap-2 no-print">
                   <Download className="w-3.5 h-3.5" /> Export
                 </Button>
               </div>
@@ -327,17 +331,17 @@ export default function ReportsPage() {
               {loading ? <div className="p-4"><Skeleton className="h-32" /></div> : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-max whitespace-nowrap">
+                    <table className="data-table w-full min-w-max whitespace-nowrap">
                       <thead>
-                        <tr className="border-b border-border bg-muted/30">
+                        <tr>
                           {['Description', 'Category', 'Supplier', 'Payment', 'Reference', 'Amount'].map(h => (
-                            <th key={h} className={`text-left px-4 py-3 text-xs font-semibold text-muted-foreground ${h === 'Amount' ? 'text-right' : ''}`}>{h}</th>
+                            <th key={h} className={`text-left px-4 py-3  ${h === 'Amount' ? 'text-right' : ''}`}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {dailyExpenses.map(exp => (
-                          <tr key={exp.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                          <tr key={exp.id}>
                             <td className="px-4 py-2.5 text-sm">{exp.description}</td>
                             <td className="px-4 py-2.5 text-xs text-muted-foreground">{exp.categories?.name ?? '—'}</td>
                             <td className="px-4 py-2.5 text-xs text-muted-foreground">{exp.supplier ?? '—'}</td>
@@ -348,7 +352,7 @@ export default function ReportsPage() {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-muted/30 border-t-2 border-border">
+                        <tr className="border-t-2 border-border">
                           <td colSpan={5} className="px-4 py-3 text-sm font-semibold">Total Daily Expenses</td>
                           <td className="px-4 py-3 text-sm font-bold text-right amount-text text-destructive">{formatCurrency(dailyTotal, currency)}</td>
                         </tr>
@@ -364,29 +368,29 @@ export default function ReportsPage() {
 
         {/* ── Monthly Summary ── */}
         <TabsContent value="monthly" className="mt-4">
-          <Card className="shadow-card min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">Monthly Financial Summary</CardTitle>
-              <Button variant="secondary" size="sm" onClick={handleExportMonthly} className="gap-2 no-print">
+              <CardTitle className="text-base">Monthly Financial Summary</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleExportMonthly} className="gap-2 no-print">
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? <div className="p-4"><Skeleton className="h-48" /></div> : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-max whitespace-nowrap">
+                  <table className="data-table w-full min-w-max whitespace-nowrap">
                     <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Month</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Investment Added</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Expenses</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Net Movement</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Closing Balance</th>
+                      <tr>
+                        <th className="text-left px-4 py-3 ">Month</th>
+                        <th className="text-right px-4 py-3 ">Investment Added</th>
+                        <th className="text-right px-4 py-3 ">Expenses</th>
+                        <th className="text-right px-4 py-3 ">Net Movement</th>
+                        <th className="text-right px-4 py-3 ">Closing Balance</th>
                       </tr>
                     </thead>
                     <tbody>
                       {monthlyRows.map(row => (
-                        <tr key={row.month} className="border-b border-border last:border-0 hover:bg-muted/20">
+                        <tr key={row.month}>
                           <td className="px-4 py-2.5 text-sm font-medium">{row.monthLabel}</td>
                           <td className="px-4 py-2.5 text-sm text-right amount-text text-primary">{row.investmentAdded > 0 ? formatCurrency(row.investmentAdded, currency) : '—'}</td>
                           <td className="px-4 py-2.5 text-sm text-right amount-text text-destructive">{row.expenses > 0 ? formatCurrency(row.expenses, currency) : '—'}</td>

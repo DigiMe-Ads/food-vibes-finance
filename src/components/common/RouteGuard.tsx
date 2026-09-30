@@ -1,9 +1,10 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { ForcedPasswordChange } from '@/pages/ChangePasswordPage';
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, mustChangePassword } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -19,6 +20,11 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Temporary password (migrated user, new account or admin reset): must pick their own first
+  if (mustChangePassword) {
+    return <ForcedPasswordChange />;
   }
 
   return <>{children}</>;

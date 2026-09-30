@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getCategories, addCategory, updateCategory, disableCategory, getCategoryExpenseCount } from '@/services/api';
 import type { Category } from '@/types/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Tag, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Pencil, Tag, CheckCircle2, XCircle, Search, Tags, Ban } from 'lucide-react';
+import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/common/StatCard';
+import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from 'sonner';
 
 export default function CategoriesPage() {
@@ -26,6 +29,7 @@ export default function CategoriesPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
 
   const loadCategories = useCallback(async () => {
     setLoading(true);
@@ -78,47 +82,40 @@ export default function CategoriesPage() {
 
   const active = categories.filter(c => c.is_active);
   const disabled = categories.filter(c => !c.is_active);
+  const q = search.trim().toLowerCase();
+  const matches = (c: Category) => !q || c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q);
+  const shownActive = active.filter(matches);
+  const shownDisabled = disabled.filter(matches);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Categories</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Manage expense categories</p>
-        </div>
-        <Button onClick={openAdd} className="gap-2 shrink-0">
-          <Plus className="w-4 h-4" /> Add Category
-        </Button>
+    <div className="space-y-6">
+      <PageHeader
+        title="Categories"
+        description="Organise expenses into categories. Disabled ones stay on past expenses."
+        actions={
+          <Button onClick={openAdd} className="gap-2">
+            <Plus className="h-4 w-4" /> Add category
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <StatCard label="Total" value={categories.length} icon={Tags} tone="neutral" loading={loading} />
+        <StatCard label="Active" value={active.length} icon={CheckCircle2} tone="success" loading={loading} valueClassName="text-success" />
+        <StatCard label="Disabled" value={disabled.length} icon={Ban} tone="neutral" loading={loading} className="col-span-2 md:col-span-1" />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold mt-1">{categories.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Active</p>
-            <p className="text-2xl font-bold mt-1 text-success">{active.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card col-span-2 md:col-span-1">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Disabled</p>
-            <p className="text-2xl font-bold mt-1 text-muted-foreground">{disabled.length}</p>
-          </CardContent>
-        </Card>
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder="Search categories…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {/* Active categories */}
-      <Card className="shadow-card">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-success" />
-            <CardTitle className="text-base font-semibold">Active Categories</CardTitle>
+            <CardTitle className="text-base">Active categories</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -126,15 +123,15 @@ export default function CategoriesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-16" />)}
             </div>
-          ) : active.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-4 text-center">No active categories.</p>
+          ) : shownActive.length === 0 ? (
+            <EmptyState icon={Tag} title={q ? 'No matching categories' : 'No active categories'} className="py-8" />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {active.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors">
+              {shownActive.map(cat => (
+                <div key={cat.id} className="group flex items-center justify-between rounded-xl border border-border p-3 transition-colors hover:border-primary/30 hover:bg-muted/40">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Tag className="w-3.5 h-3.5 text-primary" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                      <Tag className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{cat.name}</p>
@@ -142,11 +139,11 @@ export default function CategoriesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-2">
-                    <button onClick={() => openEdit(cat)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                      <Pencil className="w-3.5 h-3.5" />
+                    <button onClick={() => openEdit(cat)} className="icon-btn" title="Edit" aria-label={`Edit ${cat.name}`}>
+                      <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setDisableTarget(cat)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                      <XCircle className="w-3.5 h-3.5" />
+                    <button onClick={() => setDisableTarget(cat)} className="icon-btn icon-btn-danger" title="Disable" aria-label={`Disable ${cat.name}`}>
+                      <XCircle className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -157,18 +154,18 @@ export default function CategoriesPage() {
       </Card>
 
       {/* Disabled categories */}
-      {disabled.length > 0 && (
-        <Card className="shadow-card">
+      {shownDisabled.length > 0 && (
+        <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-muted-foreground" />
-              <CardTitle className="text-base font-semibold text-muted-foreground">Disabled Categories</CardTitle>
+              <CardTitle className="text-base text-muted-foreground">Disabled categories</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {disabled.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20 opacity-70">
+              {shownDisabled.map(cat => (
+                <div key={cat.id} className="flex items-center justify-between rounded-xl border border-dashed border-border bg-muted/30 p-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <Tag className="w-3.5 h-3.5 text-muted-foreground" />
@@ -178,9 +175,9 @@ export default function CategoriesPage() {
                       <Badge variant="secondary" className="text-xs mt-0.5">Disabled</Badge>
                     </div>
                   </div>
-                  <button onClick={() => setEnableTarget(cat)} className="p-1.5 rounded hover:bg-success/10 text-muted-foreground hover:text-success transition-colors shrink-0 ml-2">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  </button>
+                  <Button variant="outline" size="sm" onClick={() => setEnableTarget(cat)} className="ml-2 shrink-0 gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Enable
+                  </Button>
                 </div>
               ))}
             </div>

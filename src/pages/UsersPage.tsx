@@ -1,25 +1,33 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import type { Profile } from '@/types/types';
+import type { Profile, UserRole } from '@/types/types';
 import { USER_ROLES, canManageUsers } from '@/types/types';
-import { formatDate } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatDate, cn, displayName } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Eye, Shield, User, Mail, Calendar, Activity, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  Plus, Eye, Shield, Mail, Calendar, Activity, RefreshCw, Trash2, Search,
+  Users as UsersIcon, KeyRound, Wand2, Calculator, EyeIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/common/StatCard';
+import { EmptyState } from '@/components/common/EmptyState';
+import { PasswordInput, PasswordStrength, MIN_PASSWORD_LENGTH } from '@/components/common/PasswordInput';
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
+// User management runs through SECURITY DEFINER SQL functions
+// (supabase/migrations/00006_user_management_sql_rpcs.sql) that check the caller is an admin.
 
 async function listProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: true });
@@ -28,16 +36,10 @@ async function listProfiles(): Promise<Profile[]> {
 }
 
 async function createUser(email: string, password: string, username: string, role: string): Promise<void> {
-  const { data, error } = await supabase.functions.invoke('manage-user', {
-    body: { action: 'create_user', email, password, username: username || null, role },
+  const { error } = await supabase.rpc('admin_create_user', {
+    p_email: email, p_password: password, p_username: username || null, p_role: role,
   });
-  // supabase.functions.invoke sets error.message to a generic string on non-2xx;
-  // the real message is in data.error or error.context?.responseBody
-  if (error) {
-    const msg = data?.error ?? error.message ?? 'Edge Function error';
-    throw new Error(msg);
-  }
-  if (data?.error) throw new Error(data.error);
+  if (error) throw new Error(error.message);
 }
 
 async function updateUserRole(userId: string, role: string): Promise<void> {
@@ -45,15 +47,14 @@ async function updateUserRole(userId: string, role: string): Promise<void> {
   if (error) throw error;
 }
 
+async function setUserPassword(userId: string, password: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_user_password', { p_user_id: userId, p_password: password });
+  if (error) throw new Error(error.message);
+}
+
 async function deleteUser(userId: string): Promise<void> {
-  const { data, error } = await supabase.functions.invoke('manage-user', {
-    body: { action: 'delete_user', userId },
-  });
-  if (error) {
-    const msg = data?.error ?? error.message ?? 'Edge Function error';
-    throw new Error(msg);
-  }
-  if (data?.error) throw new Error(data.error);
+  const { error } = await supabase.rpc('admin_delete_user', { p_user_id: userId });
+  if (error) throw new Error(error.message);
 }
 
 async function getUserActivityCount(userId: string): Promise<number> {
@@ -62,12 +63,84 @@ async function getUserActivityCount(userId: string): Promise<number> {
   return data ?? 0;
 }
 
+/** Readable temporary password, e.g. "Vibes-4827-Kq". */
+function generateTempPassword(): string {
+  const words = ['Vibes', 'Spice', 'Grill', 'Table', 'Plate', 'Basil', 'Curry', 'Ember'];
+  const rand = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+  return `${words[rand(words.length)]}-${1000 + rand(9000)}-${letters[rand(letters.length)]}${letters[rand(letters.length)]}`;
+}
+
+const ROLE_STYLES: Record<UserRole, { label: string; className: string }> = {
+  admin: { label: 'Admin', className: 'bg-primary/10 text-primary border-primary/20' },
+  accounts: { label: 'Accounts', className: 'bg-accent/10 text-accent border-accent/20' },
+  viewer: { label: 'Viewer', className: 'bg-muted text-muted-foreground border-border' },
+  user: { label: 'User', className: 'bg-muted text-muted-foreground border-border' },
+};
+
+function RoleBadge({ role }: { role: UserRole }) {
+  const s = ROLE_STYLES[role] ?? ROLE_STYLES.user;
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold', s.className)}>
+      {role === 'admin' && <Shield className="h-3 w-3" />}
+      {s.label}
+    </span>
+  );
+}
+
+function UserAvatar({ profile, size = 'md' }: { profile: Profile; size?: 'md' | 'lg' }) {
+  const name = displayName(profile.email, profile.username);
+  const initials = name.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  return (
+    <span className={cn(
+      'flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary',
+      size === 'lg' ? 'h-14 w-14 text-base' : 'h-9 w-9 text-xs',
+    )}>
+      {initials}
+    </span>
+  );
+}
+
+function RoleSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id}><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {USER_ROLES.map(r => (
+          <SelectItem key={r.value} value={r.value}>
+            <div className="py-0.5">
+              <p className="font-medium">{r.label}</p>
+              <p className="text-xs text-muted-foreground">{r.description}</p>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function TempPasswordField({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <PasswordInput id={id} autoComplete="new-password" placeholder={`Min. ${MIN_PASSWORD_LENGTH} characters`} value={value} onChange={e => onChange(e.target.value)} />
+        </div>
+        <Button type="button" variant="outline" onClick={() => onChange(generateTempPassword())} className="gap-1.5 shrink-0">
+          <Wand2 className="h-4 w-4" /> Generate
+        </Button>
+      </div>
+      <PasswordStrength password={value} />
+    </div>
+  );
+}
+
 // ─── Create User Modal ────────────────────────────────────────────────────────
 
 interface CreateUserModalProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onCreated: () => void;
+  onCreated: (email: string, password: string) => void;
 }
 
 function CreateUserModal({ open, onOpenChange, onCreated }: CreateUserModalProps) {
@@ -85,17 +158,17 @@ function CreateUserModal({ open, onOpenChange, onCreated }: CreateUserModalProps
       toast.error('Email and password are required.');
       return;
     }
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters.');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     setSaving(true);
     try {
       await createUser(email.trim(), password, username.trim(), role);
-      toast.success(`User "${email.trim()}" created successfully.`);
+      toast.success(`User "${email.trim()}" created.`);
+      onCreated(email.trim(), password);
       reset();
       onOpenChange(false);
-      onCreated();
     } catch (err: unknown) {
       toast.error((err as Error).message ?? 'Failed to create user.');
     } finally {
@@ -107,7 +180,8 @@ function CreateUserModal({ open, onOpenChange, onCreated }: CreateUserModalProps
     <Dialog open={open} onOpenChange={v => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create New User</DialogTitle>
+          <DialogTitle>Create new user</DialogTitle>
+          <DialogDescription>They'll be asked to choose their own password the first time they sign in.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           <div className="space-y-1.5">
@@ -115,34 +189,101 @@ function CreateUserModal({ open, onOpenChange, onCreated }: CreateUserModalProps
             <Input id="cu-email" type="email" placeholder="user@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cu-username">Username</Label>
-            <Input id="cu-username" placeholder="Optional display name" value={username} onChange={e => setUsername(e.target.value)} />
+            <Label htmlFor="cu-username">Display name</Label>
+            <Input id="cu-username" placeholder="Optional" value={username} onChange={e => setUsername(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cu-password">Password <span className="text-destructive">*</span></Label>
-            <Input id="cu-password" type="password" placeholder="Min. 6 characters" value={password} onChange={e => setPassword(e.target.value)} required />
+            <Label htmlFor="cu-password">Temporary password <span className="text-destructive">*</span></Label>
+            <TempPasswordField id="cu-password" value={password} onChange={setPassword} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cu-role">Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger id="cu-role"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {USER_ROLES.map(r => (
-                  <SelectItem key={r.value} value={r.value}>
-                    <div>
-                      <span className="font-medium">{r.label}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{r.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <RoleSelect id="cu-role" value={role} onChange={setRole} />
           </div>
-          <DialogFooter className="pt-2">
+          <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => { reset(); onOpenChange(false); }} disabled={saving}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create User'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create user'}</Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Reset Password Modal ─────────────────────────────────────────────────────
+
+function ResetPasswordModal({ profile, onClose, onDone }: { profile: Profile; onClose: () => void; onDone: (email: string, password: string) => void }) {
+  const [password, setPassword] = useState(generateTempPassword);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      await setUserPassword(profile.id, password);
+      toast.success('Password reset.');
+      onDone(profile.email ?? '', password);
+      onClose();
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? 'Failed to reset password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reset password</DialogTitle>
+          <DialogDescription>
+            Set a temporary password for <strong className="text-foreground">{profile.email}</strong>. They'll have to choose a new one when they next sign in.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-password">Temporary password</Label>
+            <TempPasswordField id="rp-password" value={password} onChange={setPassword} />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Reset password'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Shows the temporary password once so the admin can pass it on. */
+function CredentialsModal({ creds, onClose }: { creds: { email: string; password: string }; onClose: () => void }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`Email: ${creds.email}\nTemporary password: ${creds.password}`);
+      toast.success('Copied to clipboard.');
+    } catch {
+      toast.error('Could not copy — select the text instead.');
+    }
+  };
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Share these sign-in details</DialogTitle>
+          <DialogDescription>This password won't be shown again. The user will be asked to change it after signing in.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 rounded-xl border border-border bg-muted/50 p-4 font-mono text-sm">
+          <p><span className="text-muted-foreground">Email: </span>{creds.email}</p>
+          <p><span className="text-muted-foreground">Password: </span><span className="font-semibold">{creds.password}</span></p>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={copy}>Copy</Button>
+          <Button onClick={onClose}>Done</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -154,10 +295,11 @@ interface ViewUserModalProps {
   profile: Profile;
   onClose: () => void;
   onRoleChanged: () => void;
+  onResetPassword: () => void;
   currentUserId: string;
 }
 
-function ViewUserModal({ profile, onClose, onRoleChanged, currentUserId }: ViewUserModalProps) {
+function ViewUserModal({ profile, onClose, onRoleChanged, onResetPassword, currentUserId }: ViewUserModalProps) {
   const [activityCount, setActivityCount] = useState<number | null>(null);
   const [newRole, setNewRole] = useState(profile.role);
   const [saving, setSaving] = useState(false);
@@ -183,99 +325,70 @@ function ViewUserModal({ profile, onClose, onRoleChanged, currentUserId }: ViewU
     }
   };
 
+  const details = [
+    { icon: Mail, label: 'Email', value: profile.email ?? '—' },
+    { icon: Shield, label: 'Role', value: ROLE_STYLES[profile.role]?.label ?? profile.role },
+    { icon: Calendar, label: 'Joined', value: formatDate(profile.created_at) },
+    { icon: Activity, label: 'Activity logs', value: activityCount === null ? '…' : String(activityCount) },
+  ];
+
   return (
     <>
       <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
-            <DialogTitle>User Profile</DialogTitle>
+            <DialogTitle>User profile</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 pt-1">
-            {/* Avatar row */}
+          <div className="space-y-5">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <User className="w-6 h-6 text-primary" />
-              </div>
+              <UserAvatar profile={profile} size="lg" />
               <div className="min-w-0">
-                <p className="font-semibold text-foreground truncate">
-                  {profile.username ?? profile.email?.split('@')[0] ?? 'Unknown'}
-                </p>
-                <p className="text-muted-foreground text-sm truncate">{profile.email ?? '—'}</p>
-                <Badge variant={profile.role === 'admin' ? 'default' : 'secondary'} className="mt-1 text-xs">
-                  {profile.role === 'admin' ? 'Admin' : 'User'}
-                </Badge>
+                <p className="truncate text-lg font-bold text-foreground">{displayName(profile.email, profile.username)}</p>
+                <p className="truncate text-sm text-muted-foreground">{profile.email ?? '—'}</p>
+                <div className="mt-1.5"><RoleBadge role={profile.role} /></div>
               </div>
             </div>
 
-            {/* Details grid */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Mail className="w-3.5 h-3.5" />
-                  <span className="text-xs">Email</span>
+              {details.map(d => (
+                <div key={d.label} className="space-y-1 rounded-xl bg-muted/60 p-3">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <d.icon className="h-3.5 w-3.5" />
+                    <span className="text-xs">{d.label}</span>
+                  </div>
+                  <p className="break-words text-sm font-medium text-foreground">{d.value}</p>
                 </div>
-                <p className="text-sm text-foreground break-words">{profile.email ?? '—'}</p>
-              </div>
-              <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="text-xs">Role</span>
-                </div>
-                <p className="text-sm text-foreground capitalize">{profile.role}</p>
-              </div>
-              <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span className="text-xs">Joined</span>
-                </div>
-                <p className="text-sm text-foreground">{formatDate(profile.created_at)}</p>
-              </div>
-              <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="text-xs">Activity Logs</span>
-                </div>
-                <p className="text-sm text-foreground font-semibold">
-                  {activityCount === null ? '…' : activityCount}
-                </p>
-              </div>
+              ))}
             </div>
 
-            {/* Role change (disabled for self to prevent lock-out) */}
-            {!isSelf && (
-              <div className="border border-border rounded-lg p-4 space-y-3">
-                <p className="text-sm font-medium text-foreground">Change Role</p>
-                <div className="flex items-center gap-3">
-                  <Select value={newRole} onValueChange={v => setNewRole(v as typeof newRole)}>
-                    <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {USER_ROLES.map(r => (
-                        <SelectItem key={r.value} value={r.value}>
-                          <div>
-                            <span className="font-medium">{r.label}</span>
-                            <span className="ml-2 text-xs text-muted-foreground">{r.description}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    disabled={newRole === profile.role || saving}
-                    onClick={() => setConfirmOpen(true)}
-                  >
-                    Update
+            {!isSelf ? (
+              <>
+                <div className="space-y-3 rounded-xl border border-border p-4">
+                  <p className="text-sm font-semibold text-foreground">Change role</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1"><RoleSelect value={newRole} onChange={v => setNewRole(v as UserRole)} /></div>
+                    <Button disabled={newRole === profile.role || saving} onClick={() => setConfirmOpen(true)}>Update</Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Password</p>
+                    <p className="text-xs text-muted-foreground">Set a temporary password if they're locked out.</p>
+                  </div>
+                  <Button variant="outline" onClick={onResetPassword} className="gap-1.5 shrink-0">
+                    <KeyRound className="h-4 w-4" /> Reset
                   </Button>
                 </div>
-              </div>
-            )}
-            {isSelf && (
-              <p className="text-xs text-muted-foreground italic">You cannot change your own role.</p>
+              </>
+            ) : (
+              <p className="text-xs italic text-muted-foreground">
+                You can't change your own role. To change your password use <strong>Change password</strong> in the account menu.
+              </p>
             )}
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="pt-1">
             <Button variant="outline" onClick={onClose}>Close</Button>
           </DialogFooter>
         </DialogContent>
@@ -284,10 +397,10 @@ function ViewUserModal({ profile, onClose, onRoleChanged, currentUserId }: ViewU
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Role Change</AlertDialogTitle>
+            <AlertDialogTitle>Confirm role change</AlertDialogTitle>
             <AlertDialogDescription>
               Change <strong>{profile.email}</strong>'s role from <strong>{profile.role}</strong> to <strong>{newRole}</strong>?
-              This will immediately affect what they can access.
+              This immediately affects what they can access.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -311,14 +424,15 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [viewProfile, setViewProfile] = useState<Profile | null>(null);
+  const [resetTarget, setResetTarget] = useState<Profile | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [creds, setCreds] = useState<{ email: string; password: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await listProfiles();
-      setProfiles(data);
+      setProfiles(await listProfiles());
     } catch {
       toast.error('Failed to load users. Admin access required.');
     } finally {
@@ -343,180 +457,143 @@ export default function UsersPage() {
     }
   };
 
-  const filtered = profiles.filter(p => {
-    const q = search.toLowerCase();
-    return (
-      (p.email ?? '').toLowerCase().includes(q) ||
-      (p.username ?? '').toLowerCase().includes(q)
-    );
-  });
-
-  const adminCount = profiles.filter(p => p.role === 'admin').length;
-  const userCount = profiles.filter(p => p.role === 'user').length;
+  const q = search.toLowerCase();
+  const filtered = profiles.filter(p => (p.email ?? '').toLowerCase().includes(q) || (p.username ?? '').toLowerCase().includes(q));
+  const count = (r: UserRole) => profiles.filter(p => p.role === r).length;
 
   // Only admins can access this page
   if (currentProfile && !canManageUsers(currentProfile.role)) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
-        <Shield className="w-12 h-12 text-muted-foreground/40" />
-        <p className="text-lg font-semibold text-foreground">Access Restricted</p>
-        <p className="text-muted-foreground text-sm">Only administrators can manage users.</p>
-      </div>
+      <EmptyState icon={Shield} title="Access restricted" description="Only administrators can manage users." className="py-24" />
     );
   }
 
+  const rowActions = (p: Profile) => (
+    <div className="flex items-center justify-end gap-1">
+      <button onClick={() => setViewProfile(p)} className="icon-btn" title="View profile" aria-label="View profile"><Eye className="h-4 w-4" /></button>
+      {p.id !== currentUser?.id && (
+        <>
+          <button onClick={() => setResetTarget(p)} className="icon-btn" title="Reset password" aria-label="Reset password"><KeyRound className="h-4 w-4" /></button>
+          <button onClick={() => setDeleteTarget(p)} className="icon-btn icon-btn-danger" title="Delete user" aria-label="Delete user"><Trash2 className="h-4 w-4" /></button>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Users</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Manage user accounts and roles</p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <Button variant="secondary" size="sm" onClick={load} className="gap-2">
-            <RefreshCw className="w-4 h-4" /><span className="sr-only md:not-sr-only">Refresh</span>
-          </Button>
-          <Button onClick={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" /> New User
-          </Button>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Users"
+        description="Manage who can access the dashboard and what they can do."
+        actions={
+          <>
+            <Button variant="outline" onClick={load} className="gap-2" aria-label="Refresh">
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} /><span className="hidden md:inline">Refresh</span>
+            </Button>
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> New user
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Total users" value={profiles.length} icon={UsersIcon} tone="neutral" loading={loading} />
+        <StatCard label="Admins" value={count('admin')} icon={Shield} tone="primary" loading={loading} />
+        <StatCard label="Accounts" value={count('accounts')} icon={Calculator} tone="accent" loading={loading} />
+        <StatCard label="Viewers" value={count('viewer') + count('user')} icon={EyeIcon} tone="neutral" loading={loading} />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Users</p>
-            <p className="text-2xl font-bold text-foreground">{loading ? '—' : profiles.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Administrators</p>
-            <p className="text-2xl font-bold text-primary">{loading ? '—' : adminCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card col-span-2 md:col-span-1">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Standard Users</p>
-            <p className="text-2xl font-bold text-foreground">{loading ? '—' : userCount}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search + table */}
-      <Card className="shadow-card min-w-0">
-        <CardHeader className="px-4 py-3 border-b border-border">
+      <Card className="min-w-0 overflow-hidden">
+        <div className="border-b border-border p-4">
           <div className="relative max-w-sm">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by email or username…"
-              className="pl-9"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search by email or name…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6 space-y-3">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 text-center">
-              <User className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-              <p className="text-muted-foreground">{search ? 'No users match your search.' : 'No users found.'}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-max whitespace-nowrap">
+        </div>
+
+        {loading ? (
+          <div className="space-y-3 p-5">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={UsersIcon} title={search ? 'No matching users' : 'No users yet'} description={search ? 'Try a different search.' : undefined} />
+        ) : (
+          <>
+            {/* Mobile list */}
+            <ul className="divide-y divide-border md:hidden">
+              {filtered.map(p => (
+                <li key={p.id} className="flex items-center gap-3 p-4">
+                  <UserAvatar profile={p} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {displayName(p.email, p.username)} {p.id === currentUser?.id && <span className="text-xs font-medium text-primary">(You)</span>}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+                    <div className="mt-1.5"><RoleBadge role={p.role} /></div>
+                  </div>
+                  {rowActions(p)}
+                </li>
+              ))}
+            </ul>
+
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="data-table w-full whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Email</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Role</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Joined</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground">Actions</th>
+                  <tr>
+                    <th className="px-5 py-3 text-left">User</th>
+                    <th className="px-5 py-3 text-left">Email</th>
+                    <th className="px-5 py-3 text-left">Role</th>
+                    <th className="px-5 py-3 text-left">Joined</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map(p => (
-                    <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
+                    <tr key={p.id}>
+                      <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <User className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {p.username ?? p.email?.split('@')[0] ?? 'Unknown'}
-                            </p>
-                            {p.id === currentUser?.id && (
-                              <span className="text-xs text-primary">(You)</span>
-                            )}
+                          <UserAvatar profile={p} />
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{displayName(p.email, p.username)}</p>
+                            {p.id === currentUser?.id && <span className="text-xs font-medium text-primary">You</span>}
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{p.email ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={p.role === 'admin' ? 'default' : 'secondary'}
-                          className="text-xs capitalize"
-                        >
-                          {p.role === 'admin' ? <><Shield className="w-3 h-3 mr-1" />Admin</> : p.role ?? 'user'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(p.created_at)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => setViewProfile(p)}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="View profile"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          {p.id !== currentUser?.id && (
-                            <button
-                              onClick={() => setDeleteTarget(p)}
-                              className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                              title="Delete user"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <td className="px-5 py-3 text-sm text-muted-foreground">{p.email ?? '—'}</td>
+                      <td className="px-5 py-3"><RoleBadge role={p.role} /></td>
+                      <td className="px-5 py-3 text-sm text-muted-foreground">{formatDate(p.created_at)}</td>
+                      <td className="px-5 py-3">{rowActions(p)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-        </CardContent>
+          </>
+        )}
       </Card>
 
-      {/* Modals */}
-      <CreateUserModal open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
+      <CreateUserModal open={createOpen} onOpenChange={setCreateOpen} onCreated={(email, password) => { load(); setCreds({ email, password }); }} />
       {viewProfile && (
         <ViewUserModal
           profile={viewProfile}
           onClose={() => setViewProfile(null)}
           onRoleChanged={load}
+          onResetPassword={() => { setResetTarget(viewProfile); setViewProfile(null); }}
           currentUserId={currentUser?.id ?? ''}
         />
       )}
+      {resetTarget && (
+        <ResetPasswordModal profile={resetTarget} onClose={() => setResetTarget(null)} onDone={(email, password) => setCreds({ email, password })} />
+      )}
+      {creds && <CredentialsModal creds={creds} onClose={() => setCreds(null)} />}
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={v => { if (!v) setDeleteTarget(null); }}>
         <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>Delete user</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete{' '}
-              <span className="font-semibold text-foreground">{deleteTarget?.email}</span>?
-              This cannot be undone and will remove all their profile data.
+              Permanently delete <span className="font-semibold text-foreground">{deleteTarget?.email}</span>? This can't be undone.
+              Users who have recorded expenses, investments or activity can't be deleted — change their role to Viewer instead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -526,7 +603,7 @@ export default function UsersPage() {
               onClick={handleDeleteUser}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? 'Deleting…' : 'Delete User'}
+              {deleting ? 'Deleting…' : 'Delete user'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

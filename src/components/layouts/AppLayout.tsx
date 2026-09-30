@@ -5,34 +5,53 @@ import { useProject } from '@/contexts/ProjectContext';
 import { toast } from 'sonner';
 import {
   LayoutDashboard, Receipt, TrendingUp, Tag, FileText, Settings,
-  LogOut, Menu, TrendingDown, Users
+  LogOut, Menu, Users, KeyRound, ChevronsUpDown,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { BrandMark } from '@/components/common/BrandMark';
+import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { cn, displayName } from '@/lib/utils';
 import type { UserRole } from '@/types/types';
 import { canManageUsers } from '@/types/types';
 
 type NavItem = { to: string; label: string; icon: React.ElementType; exact?: boolean };
 
-const allNavItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/expenses', label: 'Expenses', icon: Receipt },
-  { to: '/investments', label: 'Investments', icon: TrendingUp },
-  { to: '/categories', label: 'Categories', icon: Tag },
-  { to: '/reports', label: 'Reports', icon: FileText },
-  { to: '/settings', label: 'Settings', icon: Settings },
-  { to: '/users', label: 'Users', icon: Users },
+const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
+  {
+    title: 'Overview',
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+      { to: '/reports', label: 'Reports', icon: FileText },
+    ],
+  },
+  {
+    title: 'Records',
+    items: [
+      { to: '/expenses', label: 'Expenses', icon: Receipt },
+      { to: '/investments', label: 'Investments', icon: TrendingUp },
+      { to: '/categories', label: 'Categories', icon: Tag },
+    ],
+  },
+  {
+    title: 'Manage',
+    items: [
+      { to: '/users', label: 'Users', icon: Users },
+      { to: '/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
 
-// Items visible to each role
+// Items visible to each role (unchanged from the original app)
 const VIEWER_PATHS = new Set(['/', '/expenses', '/investments']);
 
-function getNavItems(role: UserRole | undefined): NavItem[] {
-  if (role === 'viewer') return allNavItems.filter(i => VIEWER_PATHS.has(i.to));
-  if (canManageUsers(role)) return allNavItems; // admin sees everything
-  return allNavItems.filter(i => i.to !== '/users'); // accounts / user
+function isVisible(item: NavItem, role: UserRole | undefined): boolean {
+  if (role === 'viewer') return VIEWER_PATHS.has(item.to);
+  if (canManageUsers(role)) return true; // admin sees everything
+  return item.to !== '/users'; // accounts / user
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -42,83 +61,124 @@ const ROLE_LABELS: Record<string, string> = {
   user: 'User',
 };
 
-function NavItems({ onNavigate, role }: { onNavigate?: () => void; role: UserRole | undefined }) {
-  const items = getNavItems(role);
-  return (
-    <nav className="flex-1 px-3 py-4 space-y-1">
-      {items.map(item => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.exact}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
-            )
-          }
-        >
-          <item.icon className="w-4 h-4 shrink-0" />
-          <span>{item.label}</span>
-        </NavLink>
-      ))}
-    </nav>
-  );
+function initials(name: string): string {
+  return name.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'U';
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { signOut, profile } = useAuth();
-  const { project } = useProject();
+function useSignOut() {
+  const { signOut } = useAuth();
   const navigate = useNavigate();
-
-  const handleLogout = async () => {
+  return async () => {
     await signOut();
     toast.success('Signed out successfully.');
     navigate('/login');
   };
+}
+
+function Avatar({ name, className }: { name: string; className?: string }) {
+  return (
+    <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-[11px] font-bold text-white', className)}>
+      {initials(name)}
+    </span>
+  );
+}
+
+function AccountMenu({ trigger, align = 'end' }: { trigger: React.ReactNode; align?: 'start' | 'end' }) {
+  const { profile, user } = useAuth();
+  const navigate = useNavigate();
+  const handleSignOut = useSignOut();
+  const name = displayName(profile?.email ?? user?.email, profile?.username);
 
   return (
-    <div className="flex flex-col h-full bg-sidebar">
-      {/* Logo / Brand */}
-      <div className="px-4 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-            <TrendingDown className="w-4 h-4 text-sidebar-primary-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-white font-semibold text-sm leading-tight truncate">{"Food Vibes Finance"}</p>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent align={align} className="w-60">
+        <DropdownMenuLabel className="font-normal">
+          <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+          <p className="text-xs text-muted-foreground truncate">{profile?.email ?? user?.email}</p>
+          {profile?.role && (
+            <span className="mt-1.5 inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              {ROLE_LABELS[profile.role] ?? profile.role}
+            </span>
+          )}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/account/password')} className="gap-2 cursor-pointer">
+          <KeyRound className="h-4 w-4" /> Change password
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={handleSignOut} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+          <LogOut className="h-4 w-4" /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
-          </div>
-        </div>
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { profile, user } = useAuth();
+  const name = displayName(profile?.email ?? user?.email, profile?.username);
+
+  return (
+    <div className="flex h-full flex-col bg-sidebar">
+      <div className="px-5 pt-6 pb-5">
+        <BrandMark inverted />
       </div>
-      {/* Nav */}
-      <NavItems onNavigate={onNavigate} role={profile?.role} />
-      {/* Project status badge */}
-      {project && (
-        <div className="px-4 pb-3">
 
-        </div>
-      )}
-      {/* User + Logout */}
-      <div className="px-3 py-3 border-t border-sidebar-border">
-        {profile && (
-          <p className="text-sidebar-foreground text-xs px-3 pb-2 truncate">
-            {profile.email?.replace('@miaoda.com', '') ?? 'User'}
-            {profile.role && (
-              <span className="ml-1 text-primary font-medium">· {ROLE_LABELS[profile.role] ?? profile.role}</span>
-            )}
-          </p>
-        )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground transition-colors"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span>Logout</span>
-        </button>
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
+        {NAV_SECTIONS.map(section => {
+          const items = section.items.filter(i => isVisible(i, profile?.role));
+          if (items.length === 0) return null;
+          return (
+            <div key={section.title}>
+              <p className="px-3 pb-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50">
+                {section.title}
+              </p>
+              <div className="space-y-0.5">
+                {items.map(item => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.exact}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      cn(
+                        'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                          : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {isActive && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-sidebar-primary" />}
+                        <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-sidebar-primary' : 'opacity-80')} />
+                        <span>{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-sidebar-border p-3">
+        <AccountMenu
+          align="start"
+          trigger={
+            <button className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60">
+              <Avatar name={name} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">{name}</p>
+                <p className="truncate text-xs text-sidebar-foreground">{ROLE_LABELS[profile?.role ?? ''] ?? '—'}</p>
+              </div>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-foreground/60" />
+            </button>
+          }
+        />
       </div>
     </div>
   );
@@ -126,37 +186,57 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { project } = useProject();
+  const { profile, user } = useAuth();
+  const name = displayName(profile?.email ?? user?.email, profile?.username);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-border sticky top-0 h-screen">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col sticky top-0 h-screen no-print">
         <SidebarContent />
       </aside>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile header */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-sidebar border-b border-sidebar-border sticky top-0 z-40">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar */}
+        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border/70 bg-background/80 px-4 backdrop-blur-md md:px-8 no-print">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <button className="text-sidebar-foreground hover:text-white transition-colors">
-                <Menu className="w-5 h-5" />
+              <button className="icon-btn md:hidden" aria-label="Open menu">
+                <Menu className="h-5 w-5" />
               </button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border" aria-describedby={undefined}>
+            <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground" aria-describedby={undefined}>
               <SidebarContent onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-sidebar-primary" />
-            <span className="text-white font-semibold text-sm">RestaurantFinance</span>
+
+          <div className="md:hidden"><BrandMark compact /></div>
+
+          {project && (
+            <div className="hidden min-w-0 items-center gap-2.5 md:flex">
+              <p className="truncate text-sm font-semibold text-foreground">{project.name}</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                {project.status}
+              </span>
+            </div>
+          )}
+
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle />
+            <AccountMenu
+              trigger={
+                <button className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Account menu">
+                  <Avatar name={name} className="h-9 w-9" />
+                </button>
+              }
+            />
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
-          {children}
+        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-[1400px] animate-fade-in">{children}</div>
         </main>
       </div>
     </div>

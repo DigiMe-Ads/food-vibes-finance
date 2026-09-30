@@ -141,7 +141,7 @@ export default function AddExpenseModal({ open, onOpenChange, projectId, userId,
 
           <div className="space-y-1.5">
             <Label>Category <span className="text-destructive">*</span></Label>
-            <Select value={form.category_id || 'none'} onValueChange={v => setForm(f => ({ ...f, category_id: v === 'none' ? '' : v }))}>
+            <Select value={form.category_id} onValueChange={v => setForm(f => ({ ...f, category_id: v === 'none' ? '' : v }))}>
               <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
               <SelectContent>
                 {categories.length === 0 && <SelectItem value="none" disabled>No active categories</SelectItem>}
@@ -161,7 +161,7 @@ export default function AddExpenseModal({ open, onOpenChange, projectId, userId,
           </div>
 
           <div className="space-y-1.5">
-            <Label>Amount ({'\u0028LKR\u0029'} <span className="text-destructive">*</span></Label>
+            <Label>Amount (LKR) <span className="text-destructive">*</span></Label>
             <Input
               type="number"
               min="0"

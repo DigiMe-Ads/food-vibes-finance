@@ -1,15 +1,16 @@
 /* stylelint-disable */
+/* @import must precede all other statements */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
-
 @layer base {
+  /* Original site palette: deep navy primary, teal accent, dark navy sidebar */
   :root {
-    --radius: 0.625rem;
+    --radius: 0.75rem;
 
-    /* Core palette — light mode (professional fintech dark-navy theme) */
     --background: 220 20% 97%;
     --foreground: 222 47% 11%;
 
@@ -23,11 +24,10 @@
     --primary: 222 65% 28%;
     --primary-foreground: 210 40% 98%;
 
-    /* Secondary: light neutral */
     --secondary: 220 20% 94%;
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 18% 93%;
+    --muted: 220 18% 94%;
     --muted-foreground: 220 15% 46%;
 
     /* Accent: teal/cyan — distinct from primary */
@@ -37,38 +37,85 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 88%;
-    --input: 220 20% 88%;
-    --ring: 222 65% 28%;
+    --border: 220 20% 89%;
+    --input: 220 20% 86%;
+    --ring: 222 65% 40%;
 
-    /* Semantic status colors */
     --success: 142 69% 36%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 45%;
     --info: 210 79% 46%;
 
-    /* Charts */
     --chart-1: 222 65% 38%;
     --chart-2: 185 60% 42%;
     --chart-3: 142 60% 40%;
     --chart-4: 38 90% 50%;
     --chart-5: 0 70% 55%;
 
-    /* Sidebar — dark navy charcoal */
+    /* Sidebar — dark navy */
     --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 213 25% 82%;
+    --sidebar-foreground: 213 25% 78%;
     --sidebar-primary: 185 60% 55%;
     --sidebar-primary-foreground: 222 47% 11%;
     --sidebar-accent: 222 40% 18%;
-    --sidebar-accent-foreground: 213 25% 95%;
+    --sidebar-accent-foreground: 213 25% 97%;
     --sidebar-border: 222 35% 18%;
     --sidebar-ring: 185 60% 55%;
 
-    /* Shadows */
-    --shadow-card: 0 1px 3px 0 rgba(0,0,0,.08), 0 1px 2px -1px rgba(0,0,0,.06);
-    --shadow-hover: 0 4px 12px 0 rgba(0,0,0,.10);
+    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+    --shadow-hover: 0 8px 24px -6px rgb(15 23 42 / 0.14);
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(222, 65%, 28%), hsl(222, 55%, 38%));
+    --gradient-primary: linear-gradient(135deg, hsl(222 65% 28%), hsl(222 55% 40%));
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 213 25% 94%;
+
+    --card: 222 40% 10%;
+    --card-foreground: 213 25% 94%;
+
+    --popover: 222 40% 11%;
+    --popover-foreground: 213 25% 94%;
+
+    /* Lighter blue so buttons and bars stay visible on the dark surface */
+    --primary: 217 80% 62%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 213 25% 94%;
+
+    --muted: 222 30% 14%;
+    --muted-foreground: 215 16% 64%;
+
+    --accent: 185 60% 50%;
+    --accent-foreground: 222 47% 8%;
+
+    --destructive: 0 75% 62%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 28% 18%;
+    --input: 222 28% 22%;
+    --ring: 217 80% 62%;
+
+    --success: 142 55% 48%;
+    --warning: 38 90% 56%;
+    --info: 210 79% 60%;
+
+    --chart-1: 217 80% 62%;
+    --chart-2: 185 60% 50%;
+    --chart-3: 142 55% 48%;
+    --chart-4: 38 90% 56%;
+    --chart-5: 0 70% 62%;
+
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 213 20% 72%;
+    --sidebar-accent: 222 35% 13%;
+    --sidebar-border: 222 30% 12%;
+
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-hover: 0 8px 24px -6px rgb(0 0 0 / 0.5);
+
+    --gradient-primary: linear-gradient(135deg, hsl(217 70% 50%), hsl(222 60% 38%));
   }
 }
 
@@ -79,41 +126,73 @@
     scrollbar-color: hsl(var(--border)) transparent;
   }
 
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'Montserrat', system-ui, sans-serif;
-    font-size: 15px;
-    line-height: 1.6;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Montserrat', system-ui, sans-serif;
-    font-weight: 600;
-    line-height: 1.25;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
   }
 }
 
-/* Utility: currency amount emphasis */
+@layer components {
+  /* Shared data-table look: quiet uppercase headers, roomy rows */
+  .data-table thead tr {
+    @apply border-b border-border bg-muted/50;
+  }
+  .data-table thead th {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+  .data-table tbody tr {
+    @apply border-b border-border/70 last:border-0 transition-colors;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-muted/40;
+  }
+  .data-table tfoot tr {
+    @apply bg-muted/50;
+  }
+
+  /* Small square icon button used in table rows */
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+  .icon-btn-danger {
+    @apply hover:bg-destructive/10 hover:text-destructive;
+  }
+}
+
+/* Currency amount emphasis */
 .amount-text {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   letter-spacing: -0.01em;
 }
 
-/* Status badge colors */
 .status-normal { @apply text-success; }
 .status-attention { @apply text-warning; }
 .status-warning { @apply text-destructive; }
 
-/* Print styles */
 @media print {
   .no-print { display: none !important; }
   body { background: white; color: black; }
   .print-full { width: 100% !important; }
 }
 
-/* Sidebar nav active state */
 .nav-active {
   background-color: hsl(var(--sidebar-accent));
   color: hsl(var(--sidebar-accent-foreground));

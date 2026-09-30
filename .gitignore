@@ -30,3 +30,7 @@ package.json.[0-9]*
 .sync
 history/*.json
 .vite_cache
+.env
+
+# Data exports (contain real financial/user data)
+backup

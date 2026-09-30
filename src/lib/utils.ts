@@ -14,13 +14,16 @@ export function formatCurrency(amount: number, currency = 'LKR'): string {
 export function formatCurrencyShort(amount: number, currency = 'LKR'): string {
   if (amount >= 1_000_000) return `${currency} ${(amount / 1_000_000).toFixed(1)}M`;
   if (amount >= 1_000) return `${currency} ${(amount / 1_000).toFixed(0)}K`;
+  if (amount === 0) return `${currency} 0`;
   return formatCurrency(amount, currency);
 }
 
 // Format date: 15 Aug 2026
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '—';
-  const date = new Date(dateStr + 'T00:00:00');
+  // Accepts plain dates (YYYY-MM-DD) and full timestamps; show the calendar date
+  const date = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+  if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
@@ -73,4 +76,11 @@ export function monthLabel(ym: string): string {
   const [year, month] = ym.split('-');
   const date = new Date(Number(year), Number(month) - 1, 1);
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+// Friendly name for a user: username, else "admin" for legacy @miaoda.com logins, else the email's local part
+export function displayName(email: string | null | undefined, username?: string | null): string {
+  if (username) return username;
+  if (!email) return 'User';
+  return email.endsWith('@miaoda.com') ? email.replace('@miaoda.com', '') : email.split('@')[0];
 }
